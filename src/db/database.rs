@@ -17,8 +17,8 @@ pub struct Database{
 
 
 impl Database {
-    pub async fn init() -> Result<Self,Error>{
-        let client = Surreal::new::<Ws>("127.0.0.1:8080").await?;
+    pub async fn init(address:&str) -> Result<Self,Error>{
+        let client = Surreal::new::<Ws>(address).await?;
         client.signin(Root{
             username:"root",
             password:"root"

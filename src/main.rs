@@ -10,8 +10,8 @@ use actix_web::{
     web::{Data, Form, Json},
     App, HttpRequest, HttpResponse, HttpServer, Responder,
 };
-use std::io;
-use tracing::{info, Level};
+use std::{env, io};
+use tracing::{debug, info, trace, Level};
 use tracing_subscriber::{
     fmt::{layer, writer::MakeWriterExt, MakeWriter},
     layer::{self, SubscriberExt},
@@ -28,7 +28,7 @@ use crate::{
 #[post("/create_user")]
 async fn validate_user(user: Json<AuthUserRequest>, db: Data<Database>) -> impl Responder {
     // info!(user,"/create_user http request received with body");
-
+    let domain = std::env::var("CORS_DOMAIN").unwrap();
     let is_valid = user.validate();
     match is_valid {
         Ok(_) => {
@@ -51,7 +51,7 @@ async fn validate_user(user: Json<AuthUserRequest>, db: Data<Database>) -> impl 
                     let json =
                         serde_json::to_string_pretty(&created).expect("unable to serialize user");
                     let cookie = Cookie::build("Auth-Token", new_uuid.to_string().clone())
-                        .domain("natimerry.com")
+                        .domain(domain)
                         .path("/")
                         .same_site(actix_web::cookie::SameSite::None)
                         .secure(true)
@@ -99,6 +99,8 @@ async fn get_users(auth: HttpRequest, db: Data<Database>) -> impl Responder {
 }
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
+
+
     let debug_file =
         tracing_appender::rolling::hourly("./logs/", "debug").with_max_level(tracing::Level::INFO);
 
@@ -117,15 +119,20 @@ async fn main() -> std::io::Result<()> {
         )
         .with(
             tracing_subscriber::fmt::Layer::new()
-                .with_writer(std::io::stdout.with_max_level(Level::INFO))
-                .pretty(),
+                .with_writer(std::io::stdout.with_max_level(Level::DEBUG))
         )
         .init();
 
-    let bind_address = "0.0.0.0:9090";
+
+    let _ = dotenvy::dotenv().expect("No env file found");
+    trace!("{:?} {}",env::vars(),"Loaded enviroment variables");
+
+    let bind_address = env::var("BIND_ADDRESS").expect("NO BIND_ADDRESS set in the enviroment");
     info!(bind_address, "Beginning HTTP server on address:");
 
-    let db = Database::init()
+    let surreal_db_address = env::var("SURREALDB_ADDRESS").expect("SURREALDB_ADDRESS enviroment variable not sent");
+    info!(surreal_db_address);
+    let db = Database::init(&surreal_db_address)
         .await
         .expect("Unable to connect to surrealDB database");
 
@@ -133,15 +140,6 @@ async fn main() -> std::io::Result<()> {
 
 
     HttpServer::new(move || {
-        // let cors = Cors::default()
-        // .allowed_origin("https://api.natimery.com/")
-        // .allowed_origin_fn(|origin, _req_head| {
-        //     origin.as_bytes().ends_with(b".natimerry.com")
-        // })
-        // .allowed_methods(vec!["GET", "POST"])
-        // .allowed_headers(vec![http::header::AUTHORIZATION, http::header::ACCEPT])
-        // .allowed_header(http::header::CONTENT_TYPE)
-        // .max_age(3600);
         let cors = Cors::permissive().supports_credentials();
         App::new()
             .wrap(cors)

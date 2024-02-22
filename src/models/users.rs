@@ -16,12 +16,12 @@ pub struct AuthUserRequest{
 #[derive(Serialize,Deserialize,Validate,Debug)]
 pub struct User{
     #[serde(skip_deserializing)]
-    pub token: String,
+    token: String,
     pub username: String,
     #[validate(email)]
     pub email: String,
     #[serde(skip_deserializing)]
-    pub hashed_pass: String,
+    hashed_pass: String,
 }
 
 impl User{
