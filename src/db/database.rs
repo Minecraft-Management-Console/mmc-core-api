@@ -87,7 +87,7 @@ impl Database {
         match result {
             Ok(a) => Some(a),
             Err(e) => {
-                dbg!(e);
+                warn!("{:#?}",e);
                 None
             }
         }
@@ -117,7 +117,7 @@ impl Database {
                 info!("Created Token successfully");
             }
             Err(e) => {
-                info!("{e} {}", "Error");
+                warn!("{e} {}", "Error");
             }
         };
     }
@@ -134,7 +134,7 @@ impl Database {
         match created_user {
             Ok(created) => Ok(created.unwrap()),
             Err(e) => {
-                info!("{e} {}", "Error");
+                warn!("{e} {}", "Error");
                 Err(format!("{e}"))
             }
         }
@@ -212,7 +212,7 @@ impl Database {
         let mut query = self.client.query(sql).await.unwrap();
         let pass_in_db: Option<HashedPass> = query.take(0).unwrap();
 
-        match dbg!(pass_in_db) {
+        match pass_in_db {
             Some(database_hash) => {
                 let db_in_pass = database_hash.hashed_pass;
                 if db_in_pass == generate_sha512_string(db_store_pass.to_string()) {
@@ -240,7 +240,7 @@ impl Database {
                         let _ = self.client.query(delete_token_sql).await; // NOW CREATE A NEW TOKEN FOR THE USER HURRR
 
                         let mut buffer = uuid::Uuid::encode_buffer();
-                        let new_uuid = uuid::Uuid::now_v7().simple().encode_lower(&mut buffer);
+                        let new_uuid = uuid::Uuid::new_v4().simple().encode_lower(&mut buffer);
 
                         self.create_token(&new_uuid, &username).await;
                     }
@@ -250,7 +250,7 @@ impl Database {
                     
                     let sql = format!("SELECT * FROM users:{} FETCH token", username); // WE WILL HAVE TO GENERATE A NEW TOKEN IN THIS CASE
                     let mut response = self.client.query(sql).await.unwrap();
-                    let result: Option<User> = dbg!(response.take(0)).unwrap();
+                    let result: Option<User> = response.take(0).unwrap();
                     return Ok(result.unwrap());
                 }
                 

@@ -11,7 +11,7 @@ use actix_web::{
     App, HttpRequest, HttpResponse, HttpServer, Responder,
 };
 use std::{env, io};
-use tracing::{debug, info, trace, Level};
+use tracing::{debug, info, trace, warn, Level};
 use tracing_subscriber::{
     fmt::{layer, writer::MakeWriterExt, MakeWriter},
     layer::{self, SubscriberExt},
@@ -38,7 +38,7 @@ async fn create_user(user: Json<AuthUserSignupRequest>, db: Data<Database>) -> i
             let user_name = user.username.clone();
             let email = user.email.clone();
             let mut buffer = uuid::Uuid::encode_buffer();
-            let new_uuid = uuid::Uuid::now_v7().simple().encode_lower(&mut buffer);
+            let new_uuid = uuid::Uuid::new_v4().simple().encode_lower(&mut buffer);
 
             let new_user = db
                 .add_user(
@@ -84,20 +84,28 @@ async fn login(user: Json<AuthUserLoginRequest>, db: Data<Database>) -> impl Res
     match is_valid {
         Ok(_) => {
             let user_name = user.username.clone();
-            let new_user = db.login(&user_name,&user.password).await;
+            let new_user = db.login(&user_name, &user.password).await;
 
             match new_user {
                 Ok(created) => {
                     let json =
                         serde_json::to_string_pretty(&created).expect("unable to serialize user");
 
-                    let cookie = Cookie::build("Auth-Token", created.token.expect("TOKEN IS A NONE VALUE").secret.to_string().clone())
-                        .domain(domain)
-                        .path("/")
-                        .same_site(actix_web::cookie::SameSite::None)
-                        .secure(true)
-                        .http_only(true)
-                        .finish();
+                    let cookie = Cookie::build(
+                        "Auth-Token",
+                        created
+                            .token
+                            .expect("TOKEN IS A NONE VALUE")
+                            .secret
+                            .to_string()
+                            .clone(),
+                    )
+                    .domain(domain)
+                    .path("/")
+                    .same_site(actix_web::cookie::SameSite::None)
+                    .secure(true)
+                    .http_only(true)
+                    .finish();
                     // dbg!(&cookie);
 
                     HttpResponse::Ok()
@@ -105,7 +113,7 @@ async fn login(user: Json<AuthUserLoginRequest>, db: Data<Database>) -> impl Res
                         .content_type(ContentType::json())
                         .body(json)
                 }
-                Err(e) => HttpResponse::Forbidden().body(format!("{}",e)),
+                Err(e) => HttpResponse::Forbidden().body(format!("{}", e)),
             }
         }
         Err(e) => {
@@ -156,7 +164,10 @@ async fn get_users(auth: HttpRequest, db: Data<Database>) -> impl Responder {
                 }
             };
         }
-        None => HttpResponse::BadRequest().body("Malformed request!"),
+        None => {
+            warn!("No authorisation cookie found for requst");
+            HttpResponse::BadRequest().body("Malformed request!")
+        }
     }
 }
 
