@@ -139,7 +139,9 @@ async fn main() -> std::io::Result<()> {
         )
         .with(
             tracing_subscriber::fmt::Layer::new()
-                .with_writer(std::io::stdout.with_max_level(Level::DEBUG)),
+                .with_writer(std::io::stdout.with_max_level(Level::DEBUG))
+                .with_file(true)
+                .with_line_number(true),
         )
         .init();
 

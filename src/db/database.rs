@@ -40,7 +40,6 @@ impl Display for SessionTokenErrors{
     }
 }
 
-
 impl Database {
     pub async fn init(address: &str) -> Result<Self, Error> {
         info!({ address }, "Initialising SurrealDB on address:");
@@ -66,42 +65,60 @@ impl Database {
     }
 
     pub async fn get_all_users(&self) -> Option<Vec<User>> {
-        let result = self.client.select("users").await;
+        let query = "SELECT username,token.expiry,token.secret,email,hashed_pass FROM users;";
+        let mut response = self.client.query(query).await.unwrap();
+
+        let result: Result<Vec<User>, Error> = response.take(0);
+        // let result = self.client.select("users").await;
         match result {
             Ok(a) => Some(a),
-            Err(_) => None,
+            Err(e) => {
+                dbg!(e);
+                None
+            },
         }
     }
-
-    pub async fn add_user(&self, new_user: User, token: &str) -> Result<User, String> {
+    pub async fn create_token(&self,token: &str,username:&str){
         let created_token: Result<Option<Token>, Error> = self
             .client
             .create(("token", token))
-            .content(new_user.token.clone())
+            .content(Token{
+                expiry: (Utc::now()+chrono::Duration::days(2)).to_string(),
+                secret: String::from(token),
+            })
             .await;
 
         let query = format!(
             "UPDATE token:{} SET owner=user:{}",
             token,
-            new_user.username.clone()
+            username
         );
+
+        let fuck_this_crap = format!(
+            "UPDATE users:{} SET token=token:{}",username,token
+        );
+
         debug!("{} {}", "Sending ownership query: ", query);
-        self.client.query(query).await.unwrap();
-        let created_user = self
-            .client
-            .create(("users", new_user.username.clone()))
-            .content(new_user)
-            .await;
+        self.client.query(query).query(fuck_this_crap).await.unwrap();
         match created_token {
             Ok(_) => {
                 info!("Created Token successfully");
             }
             Err(e) => {
                 info!("{e} {}", "Error");
-                return Err(format!("{e}"));
             }
         };
+    }
 
+    pub async fn add_user(&self, new_user: User, token: &str) -> Result<User, String> {
+        let username = new_user.username.clone();
+        let created_user = self
+            .client
+            .create(("users", new_user.username.clone()))
+            .content(new_user)
+            .await;
+
+        self.create_token(token, &username).await;
         match created_user {
             Ok(created) => Ok(created.unwrap()),
             Err(e) => {
@@ -121,16 +138,19 @@ impl Database {
         //     Some(_) => true,
         //     None => false
         // }
-
-        let query = format!("SELECT * FROM users where token.token==\"{}\"", token);
+        #[derive(Deserialize)]
+        struct Expiry{
+            expiry: String
+        }
+        let query = format!("SELECT expiry FROM token:{}", token);
         info!({ query }, "Sending query to database");
 
         let mut expiry = self.client.query(query).await.unwrap();
-        let expiry: Option<User> = expiry.take(0).expect("Unable to query DB");
+        let expiry: Option<Expiry> = expiry.take(0).expect("Unable to query DB");
 
         match expiry {
-            Some(user) => {
-                let time = user.token.expiry;
+            Some(expiration) => {
+                let time = expiration.expiry;
                 info!({ time }, "User's token will expire at: ");
                 let time_in_db = DateTime::<Utc>::from_str(&time).expect("Unable to parse date");
                 let time_now = Utc::now();
@@ -146,8 +166,8 @@ impl Database {
                 let new_expiry = (Utc::now() + chrono::Duration::days(1)).to_string();
                 debug!("{new_expiry}");
                 let sql = format!(
-                    "UPDATE users:{} SET token.expiry = \"{}\"",
-                    user.username,
+                    "UPDATE token:{} SET expiry = \"{}\"",
+                    token,
                     new_expiry
                 );
 

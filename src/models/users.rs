@@ -15,8 +15,7 @@ pub struct AuthUserRequest {
 
 #[derive(Serialize, Deserialize, Validate, Debug)]
 pub struct User {
-    // #[serde(skip_deserializing)]
-    pub token: Token,
+    pub token: Option<Token>,
     pub username: String,
     #[validate(email)]
     pub email: String,
@@ -26,18 +25,17 @@ pub struct User {
 
 #[derive(Serialize, Deserialize, Validate, Debug, Clone)]
 pub struct Token {
+    // #[serde(skip_deserializing)]
     pub expiry: String,
-    token: String,
+    // #[serde(skip_deserializing)]
+    pub secret: String,
 }
 
 impl User {
     pub fn new(username: String, password: String, email: String,token:&str) -> User {
         let hashed_pass = format!("{}:{}", username, password);
         User {
-            token: Token {
-                token: token.to_string(),
-                expiry: (Utc::now() + Duration::days(1)).to_string(),
-            },
+            token: None,
             username: username,
             hashed_pass,
             email: email,
