@@ -6,6 +6,7 @@ edition = "2021"
 [dependencies]
 actix-cors = "0.7.0"
 actix-web = "4.5.1"
+chrono = "0.4.34"
 console-subscriber = "0.2.0"
 dotenvy = "0.15.7"
 serde = { version = "1.0.196", features = ["derive"] }

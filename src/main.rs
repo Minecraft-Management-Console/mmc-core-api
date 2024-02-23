@@ -35,15 +35,13 @@ async fn create_user(user: Json<AuthUserRequest>, db: Data<Database>) -> impl Re
             let user_name = user.username.clone();
             let email = user.email.clone();
             let mut buffer = uuid::Uuid::encode_buffer();
-            let new_uuid = uuid::Uuid::new_v4().simple().encode_lower(&mut buffer);
+            let new_uuid = uuid::Uuid::now_v7().simple().encode_lower(&mut buffer);
 
             let new_user = db
-                .add_user(User::new(
-                    new_uuid.to_string().clone(),
-                    user_name,
-                    user.password.clone(),
-                    email,
-                ))
+                .add_user(
+                    User::new(user_name, user.password.clone(), email, new_uuid),
+                    &new_uuid,
+                )
                 .await;
 
             match new_user {
@@ -82,9 +80,7 @@ fn get_auth_cookie<'a>(req: &'a HttpRequest) -> Option<String> {
             info!("{:#?}", c.to_string());
             Some(c.value().to_string())
         }
-        None => {
-            None
-        }
+        None => None,
     }
 }
 
@@ -95,22 +91,29 @@ async fn get_users(auth: HttpRequest, db: Data<Database>) -> impl Responder {
             info!(key, "Received header key from the request.");
 
             let cookie = get_auth_cookie(&auth);
-            match cookie{
+            match cookie {
                 Some(token) => {
-                    if db.validate_token(&token).await{
-                        let users = db.get_all_users().await.unwrap();
-                        let json = serde_json::to_string(&users).expect("Unable to serialise the data");
-        
-                        return HttpResponse::Ok()
-                            .content_type(ContentType::json())
-                            .body(json);
-                    }
-                    return HttpResponse::Forbidden().body("Token Authentication Failed").into();
-                },
-                None => return HttpResponse::Forbidden().body("Token not found. Your session may have expired!").into()
-            };
+                    match db.validate_token(&token).await {
+                        Ok(()) => {
+                            let users = db.get_all_users().await.unwrap();
+                            let json = serde_json::to_string(&users)
+                                .expect("Unable to serialise the data");
 
-           
+                            return HttpResponse::Ok()
+                                .content_type(ContentType::json())
+                                .body(json);
+                        }
+                        Err(e) => {
+                            return HttpResponse::BadRequest().body(format!("{}",e));
+                        },
+                    }
+                }
+                None => {
+                    return HttpResponse::Forbidden()
+                        .body("Token not found. Your session may have expired!")
+                        .into()
+                }
+            };
         }
         None => HttpResponse::BadRequest().body("Malformed request!"),
     }
