@@ -24,8 +24,8 @@ impl Database {
             password:"root"
         }).await?;
 
-        client.use_ns("surreal").use_db("users").await.unwrap();
-        Ok(Database { client, name_space: String::from("surreal"), db_name: String::from("users") })
+        client.use_ns("minecraft_manager").use_db("storage").await.unwrap();
+        Ok(Database { client, name_space: String::from("minecraft_manager"), db_name: String::from("storage") })
     }
 
 
@@ -38,6 +38,9 @@ impl Database {
     }
 
     pub async fn add_user(&self,new_user:User) -> Result<User,String>{
+
+    
+
         let created_user = self.client.create(("users",new_user.username.clone())).content(new_user).await;
         match created_user{
             Ok(created) => {
@@ -45,5 +48,18 @@ impl Database {
             },
             Err(e) => {info!("{e} {}","Error"); Err(format!("{e}"))},
         }
+    }
+
+    pub async fn validate_token(&self,token:&str) -> bool{
+        let query = format!("SELECT * from users WHERE token=\"{token}\"");
+        info!("{} {}","Sending Query: ",query);
+        let mut user_in_db = self.client.query(query).await.unwrap();
+        let created: Option<User> = user_in_db.take(0).expect("Unable to query DB");
+        info!("{:?} {}",created,"found user with token");
+        match created{
+            Some(_) => true,
+            None => false
+        }
+        
     }
 }

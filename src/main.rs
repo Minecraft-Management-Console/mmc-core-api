@@ -26,7 +26,7 @@ use crate::{
 
 // THIS WILL BE USED TO THE CLIENT
 #[post("/create_user")]
-async fn validate_user(user: Json<AuthUserRequest>, db: Data<Database>) -> impl Responder {
+async fn create_user(user: Json<AuthUserRequest>, db: Data<Database>) -> impl Responder {
     // info!(user,"/create_user http request received with body");
     let domain = std::env::var("CORS_DOMAIN").unwrap();
     let is_valid = user.validate();
@@ -75,32 +75,49 @@ async fn validate_user(user: Json<AuthUserRequest>, db: Data<Database>) -> impl 
     }
 }
 
-fn get_admin_auth_token<'a>(req: &'a HttpRequest) -> Option<&'a str> {
-    req.headers().get("Auth-Token")?.to_str().ok()
+fn get_auth_cookie<'a>(req: &'a HttpRequest) -> Option<String> {
+    let cookie = req.cookie("Auth-Token");
+    match cookie {
+        Some(c) => {
+            info!("{:#?}", c.to_string());
+            Some(c.value().to_string())
+        }
+        None => {
+            None
+        }
+    }
 }
 
 #[get("/get_all_users")]
 async fn get_users(auth: HttpRequest, db: Data<Database>) -> impl Responder {
-    match get_admin_auth_token(&auth) {
+    match get_auth_cookie(&auth) {
         Some(key) => {
             info!(key, "Received header key from the request.");
-            if key == "soham123456" {
-                let users = db.get_all_users().await.unwrap();
-                let json = serde_json::to_string(&users).expect("Unable to serialise the data");
 
-                return HttpResponse::Ok()
-                    .content_type(ContentType::json())
-                    .body(json);
-            }
-            return HttpResponse::Forbidden().body("wrong key").into();
+            let cookie = get_auth_cookie(&auth);
+            match cookie{
+                Some(token) => {
+                    if db.validate_token(&token).await{
+                        let users = db.get_all_users().await.unwrap();
+                        let json = serde_json::to_string(&users).expect("Unable to serialise the data");
+        
+                        return HttpResponse::Ok()
+                            .content_type(ContentType::json())
+                            .body(json);
+                    }
+                    return HttpResponse::Forbidden().body("Token Authentication Failed").into();
+                },
+                None => return HttpResponse::Forbidden().body("Token not found. Your session may have expired!").into()
+            };
+
+           
         }
-        None => HttpResponse::BadRequest().body("kys nigger"),
+        None => HttpResponse::BadRequest().body("Malformed request!"),
     }
 }
+
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-
-
     let debug_file =
         tracing_appender::rolling::hourly("./logs/", "debug").with_max_level(tracing::Level::INFO);
 
@@ -108,10 +125,10 @@ async fn main() -> std::io::Result<()> {
         .with_max_level(tracing::Level::WARN);
     let all_files = debug_file.and(warn_file);
 
-    let console_layer = console_subscriber::spawn();
+    // let console_layer = console_subscriber::spawn();
 
     tracing_subscriber::registry()
-        .with(console_layer)
+        // .with(console_layer)
         .with(
             tracing_subscriber::fmt::layer()
                 .with_writer(all_files)
@@ -119,18 +136,18 @@ async fn main() -> std::io::Result<()> {
         )
         .with(
             tracing_subscriber::fmt::Layer::new()
-                .with_writer(std::io::stdout.with_max_level(Level::DEBUG))
+                .with_writer(std::io::stdout.with_max_level(Level::DEBUG)),
         )
         .init();
 
-
     let _ = dotenvy::dotenv().expect("No env file found");
-    trace!("{:?} {}",env::vars(),"Loaded enviroment variables");
+    trace!("{:?} {}", env::vars(), "Loaded enviroment variables");
 
-    let bind_address = env::var("BIND_ADDRESS").expect("NO BIND_ADDRESS set in the enviroment");
+    let bind_address = env::var("BIND_ADDRESS").expect("No BIND_ADDRESS set in the enviroment");
     info!(bind_address, "Beginning HTTP server on address:");
 
-    let surreal_db_address = env::var("SURREALDB_ADDRESS").expect("SURREALDB_ADDRESS enviroment variable not sent");
+    let surreal_db_address =
+        env::var("SURREALDB_ADDRESS").expect("SURREALDB_ADDRESS enviroment variable not sent");
     info!(surreal_db_address);
     let db = Database::init(&surreal_db_address)
         .await
@@ -138,13 +155,12 @@ async fn main() -> std::io::Result<()> {
 
     let db_data = Data::new(db);
 
-
     HttpServer::new(move || {
         let cors = Cors::permissive().supports_credentials();
         App::new()
             .wrap(cors)
             .app_data(db_data.clone())
-            .service(validate_user)
+            .service(create_user)
             .service(get_users)
     })
     .bind(bind_address)?
