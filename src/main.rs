@@ -49,23 +49,23 @@ async fn create_user(user: Json<AuthUserSignupRequest>, db: Data<Database>) -> i
 
             match new_user {
                 Ok(created) => {
-                    let json =
-                        serde_json::to_string_pretty(&created).expect("unable to serialize user");
-                    let cookie = Cookie::build("Auth-Token", new_uuid.to_string().clone())
-                        .domain(domain)
-                        .path("/")
-                        .same_site(actix_web::cookie::SameSite::None)
-                        .secure(true)
-                        .http_only(true)
-                        .finish();
-                    // dbg!(&cookie);
+                    // let json =
+                    //     serde_json::to_string_pretty(&created).expect("unable to serialize user");
+                    // let cookie = Cookie::build("Auth-Token", new_uuid.to_string().clone())
+                    //     .domain(domain)
+                    //     .path("/")
+                    //     .same_site(actix_web::cookie::SameSite::None)
+                    //     .secure(true)
+                    //     .http_only(true)
+                    //     .finish();
+                    // // dbg!(&cookie);
 
                     HttpResponse::Ok()
-                        .cookie(cookie)
+                        // .cookie(cookie)
                         .content_type(ContentType::json())
-                        .body(json)
+                        .body("Created User!")
                 }
-                Err(e) => HttpResponse::Forbidden().body(e),
+                Err(e) => HttpResponse::Forbidden().content_type(ContentType::plaintext()).body(e),
             }
         }
         Err(e) => {
