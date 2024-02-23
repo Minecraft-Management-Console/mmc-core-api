@@ -1,2 +1,2 @@
 pub mod users;
-pub use users::AuthUserRequest;
+pub use users::AuthUserSignupRequest;

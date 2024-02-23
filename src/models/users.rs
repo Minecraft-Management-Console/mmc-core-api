@@ -1,9 +1,10 @@
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha512};
 use validator::Validate;
 
 use chrono::{Duration, Utc};
 #[derive(Validate, Serialize, Deserialize, Debug)]
-pub struct AuthUserRequest {
+pub struct AuthUserSignupRequest {
     #[validate(length(min = 3, message = "Username required to be more than 3 characters"))]
     pub username: String,
     #[validate(length(min = 8, message = "Password required to be more than 8 characters"))]
@@ -11,6 +12,14 @@ pub struct AuthUserRequest {
     // pub token: String
     #[validate(email)]
     pub email: String,
+}
+
+#[derive(Validate, Serialize, Deserialize, Debug)]
+pub struct AuthUserLoginRequest {
+    #[validate(length(min = 3, message = "Username required to be more than 3 characters"))]
+    pub username: String,
+    #[validate(length(min = 8, message = "Password required to be more than 8 characters"))]
+    pub password: String,
 }
 
 #[derive(Serialize, Deserialize, Validate, Debug)]
@@ -30,14 +39,19 @@ pub struct Token {
     // #[serde(skip_deserializing)]
     pub secret: String,
 }
+pub fn generate_sha512_string(string: String) -> String {
+    let mut hasher = Sha512::new();
+    hasher.update(string.as_bytes());
+    let result = hasher.clone().finalize();
+    format!("{:x}", result)
+}
 
 impl User {
     pub fn new(username: String, password: String, email: String,token:&str) -> User {
-        let hashed_pass = format!("{}:{}", username, password);
         User {
             token: None,
             username: username,
-            hashed_pass,
+            hashed_pass: generate_sha512_string(password),
             email: email,
         }
     }

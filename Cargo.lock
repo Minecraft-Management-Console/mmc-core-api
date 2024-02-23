@@ -2066,27 +2066,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "mmc-api"
-version = "0.1.0"
-dependencies = [
- "actix-cors",
- "actix-web",
- "chrono",
- "console-subscriber",
- "dotenvy",
- "serde",
- "serde_json",
- "surrealdb",
- "tokio",
- "tracing",
- "tracing-appender",
- "tracing-subscriber",
- "uuid",
- "validate",
- "validator",
-]
-
-[[package]]
 name = "nanoid"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2109,6 +2088,28 @@ name = "new_debug_unreachable"
 version = "1.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e4a24736216ec316047a1fc4252e27dabb04218aa4a3f37c6e7ddbf1f9782b54"
+
+[[package]]
+name = "nexus"
+version = "0.1.0"
+dependencies = [
+ "actix-cors",
+ "actix-web",
+ "chrono",
+ "console-subscriber",
+ "dotenvy",
+ "serde",
+ "serde_json",
+ "sha2",
+ "surrealdb",
+ "tokio",
+ "tracing",
+ "tracing-appender",
+ "tracing-subscriber",
+ "uuid",
+ "validate",
+ "validator",
+]
 
 [[package]]
 name = "nibble_vec"

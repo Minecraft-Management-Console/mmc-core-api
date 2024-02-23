@@ -21,12 +21,15 @@ use validator::Validate;
 
 use crate::{
     db::Database,
-    models::{users::User, AuthUserRequest},
+    models::{
+        users::{AuthUserLoginRequest, User},
+        AuthUserSignupRequest,
+    },
 };
 
 // THIS WILL BE USED TO THE CLIENT
 #[post("/create_user")]
-async fn create_user(user: Json<AuthUserRequest>, db: Data<Database>) -> impl Responder {
+async fn create_user(user: Json<AuthUserSignupRequest>, db: Data<Database>) -> impl Responder {
     // info!(user,"/create_user http request received with body");
     let domain = std::env::var("CORS_DOMAIN").unwrap();
     let is_valid = user.validate();
@@ -73,6 +76,46 @@ async fn create_user(user: Json<AuthUserRequest>, db: Data<Database>) -> impl Re
     }
 }
 
+#[post("/login")]
+async fn login(user: Json<AuthUserLoginRequest>, db: Data<Database>) -> impl Responder {
+    // info!(user,"/create_user http request received with body");
+    let domain = std::env::var("CORS_DOMAIN").unwrap();
+    let is_valid = user.validate();
+    match is_valid {
+        Ok(_) => {
+            let user_name = user.username.clone();
+            let new_user = db.login(&user_name,&user.password).await;
+
+            match new_user {
+                Ok(created) => {
+                    let json =
+                        serde_json::to_string_pretty(&created).expect("unable to serialize user");
+
+                    let cookie = Cookie::build("Auth-Token", created.token.expect("TOKEN IS A NONE VALUE").secret.to_string().clone())
+                        .domain(domain)
+                        .path("/")
+                        .same_site(actix_web::cookie::SameSite::None)
+                        .secure(true)
+                        .http_only(true)
+                        .finish();
+                    // dbg!(&cookie);
+
+                    HttpResponse::Ok()
+                        .cookie(cookie)
+                        .content_type(ContentType::json())
+                        .body(json)
+                }
+                Err(e) => HttpResponse::Forbidden().body(format!("{}",e)),
+            }
+        }
+        Err(e) => {
+            return HttpResponse::Forbidden()
+                .content_type(ContentType::json())
+                .body(format!("{{errors=[{}]}}", e))
+        }
+    }
+}
+
 fn get_auth_cookie<'a>(req: &'a HttpRequest) -> Option<String> {
     let cookie = req.cookie("Auth-Token");
     match cookie {
@@ -92,22 +135,20 @@ async fn get_users(auth: HttpRequest, db: Data<Database>) -> impl Responder {
 
             let cookie = get_auth_cookie(&auth);
             match cookie {
-                Some(token) => {
-                    match db.validate_token(&token).await {
-                        Ok(()) => {
-                            let users = db.get_all_users().await.unwrap();
-                            let json = serde_json::to_string(&users)
-                                .expect("Unable to serialise the data");
+                Some(token) => match db.validate_token(&token).await {
+                    Ok(()) => {
+                        let users = db.get_all_users().await.unwrap();
+                        let json =
+                            serde_json::to_string(&users).expect("Unable to serialise the data");
 
-                            return HttpResponse::Ok()
-                                .content_type(ContentType::json())
-                                .body(json);
-                        }
-                        Err(e) => {
-                            return HttpResponse::BadRequest().body(format!("{}",e));
-                        },
+                        return HttpResponse::Ok()
+                            .content_type(ContentType::json())
+                            .body(json);
                     }
-                }
+                    Err(e) => {
+                        return HttpResponse::BadRequest().body(format!("{}", e));
+                    }
+                },
                 None => {
                     return HttpResponse::Forbidden()
                         .body("Token not found. Your session may have expired!")
@@ -167,6 +208,7 @@ async fn main() -> std::io::Result<()> {
             .app_data(db_data.clone())
             .service(create_user)
             .service(get_users)
+            .service(login)
     })
     .bind(bind_address)?
     .run()
