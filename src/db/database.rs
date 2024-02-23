@@ -244,7 +244,10 @@ impl Database {
 
                         self.create_token(&new_uuid, &username).await;
                     }
-
+                    else{
+                        self.refresh_token(&token).await;
+                    }
+                    
                     let sql = format!("SELECT * FROM users:{} FETCH token", username); // WE WILL HAVE TO GENERATE A NEW TOKEN IN THIS CASE
                     let mut response = self.client.query(sql).await.unwrap();
                     let result: Option<User> = dbg!(response.take(0)).unwrap();
