@@ -135,32 +135,18 @@ fn get_auth_cookie<'a>(req: &'a HttpRequest) -> Option<String> {
     }
 }
 
-#[get("/get_all_users")]
-async fn get_users(auth: HttpRequest, db: Data<Database>) -> impl Responder {
+
+
+#[get("/validate")]
+async fn validate(auth: HttpRequest, db: Data<Database>) -> impl Responder {
     match get_auth_cookie(&auth) {
         Some(key) => {
-            info!(key, "Received header key from the request.");
-
-            let cookie = get_auth_cookie(&auth);
-            match cookie {
-                Some(token) => match db.validate_token(&token).await {
-                    Ok(()) => {
-                        let users = db.get_all_users().await.unwrap();
-                        let json =
-                            serde_json::to_string(&users).expect("Unable to serialise the data");
-
-                        return HttpResponse::Ok()
-                            .content_type(ContentType::json())
-                            .body(json);
-                    }
-                    Err(e) => {
-                        return HttpResponse::BadRequest().body(format!("{}", e));
-                    }
-                },
-                None => {
-                    return HttpResponse::Forbidden()
-                        .body("Token not found. Your session may have expired!")
-                        .into()
+            match db.validate_token(&key).await {
+                Ok(()) => {
+                    return HttpResponse::Ok().body("Ok!");
+                }
+                Err(e) => {
+                    return HttpResponse::BadRequest().body(format!("{}", e));
                 }
             };
         }
@@ -218,7 +204,7 @@ async fn main() -> std::io::Result<()> {
             .wrap(cors)
             .app_data(db_data.clone())
             .service(create_user)
-            .service(get_users)
+            .service(validate)
             .service(login)
     })
     .bind(bind_address)?
