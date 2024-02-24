@@ -1,20 +1,12 @@
-use std::collections::{BTreeMap, HashMap};
-use std::fmt::{write, Display};
-use std::str::FromStr;
+use std::fmt::Display;
 
-use actix_web::cookie::time::Duration;
-use chrono::{DateTime, Utc};
-use serde::{Deserialize, Serialize};
 use surrealdb::engine::remote::ws::{Client, Ws};
 // use surrealdb::sql::query;
 use surrealdb::opt::auth::Root;
 use surrealdb::Surreal;
-use surrealdb::{sql, Error};
-use tracing::{debug, info, warn};
-use tracing_subscriber::fmt::format;
-use tracing_subscriber::registry::Data;
+use surrealdb::Error;
+use tracing::info;
 
-use crate::models::users::{self};
 
 #[derive(Clone)]
 pub struct Database {
@@ -27,7 +19,7 @@ pub struct Database {
 pub enum SessionTokenErrors {
     ExpiredSessionToken,
     InvalidSessionToken,
-    NoSessionToken,
+    _NoSessionToken,
 }
 
 pub enum LoginErrors {
@@ -39,7 +31,7 @@ impl Display for SessionTokenErrors {
         match *self {
             SessionTokenErrors::ExpiredSessionToken => write!(f, "Session token has expired!"),
             SessionTokenErrors::InvalidSessionToken => write!(f, "Session token is invalid"),
-            SessionTokenErrors::NoSessionToken => write!(f, "No session token has been provided"),
+            SessionTokenErrors::_NoSessionToken => write!(f, "No session token has been provided"),
         }
     }
 }

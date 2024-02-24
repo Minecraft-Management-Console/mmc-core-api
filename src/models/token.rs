@@ -55,18 +55,14 @@ impl TokenData for Database {
     // THIS FUNCTION CANNOT RETURN SessionTokenErrors::ExpiredSessionToken
     // PLEASE DO NOT FUCKING MAKE THIS RETURN SessionTokenErrors::ExpiredSessionToken
     async fn is_sessionid_expired(&self, token: &str) -> Result<bool, SessionTokenErrors> {
-        #[derive(Deserialize)]
-        struct Expiry {
-            expiry: String,
-        }
-        let query = format!("SELECT expiry FROM token:{}", token);
+        let query = format!("SELECT VALUE expiry FROM token:{}", token);
         info!({ query }, "Sending query to database");
 
         let mut expiry = self.client.query(query).await.unwrap();
-        let expiry: Option<Expiry> = expiry.take(0).expect("Unable to query DB");
+        let expiry: Option<String> = expiry.take(0).expect("Unable to query DB");
         match expiry {
-            Some(expiration) => {
-                let time = expiration.expiry;
+            Some(time) => {
+                // let time = expiration.expiry;
                 info!({ time }, "User's token will expire at: ");
                 let time_in_db = DateTime::<Utc>::from_str(&time).expect("Unable to parse date");
                 let time_now = Utc::now();

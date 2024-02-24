@@ -38,7 +38,7 @@ async fn create_user(user: Json<AuthUserSignupRequest>, db: Data<Database>) -> i
 
             let new_user = Database::add_user(
                 &db,
-                User::new(user_name, user.password.clone(), email, new_uuid),
+                User::new(user_name, user.password.clone(), email),
                 &new_uuid,
             )
             .await;

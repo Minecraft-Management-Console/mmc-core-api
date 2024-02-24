@@ -2,10 +2,8 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha512};
 use surrealdb::Error;
 use tracing::{debug, info, warn};
-use tracing_subscriber::registry::Data;
 use validator::Validate;
 
-use chrono::{Duration, Utc};
 
 use crate::{db::{database::LoginErrors, Database}, models::token::Token};
 
@@ -47,7 +45,7 @@ pub fn generate_sha512_string(string: String) -> String {
 }
 
 impl User {
-    pub fn new(username: String, password: String, email: String, token: &str) -> User {
+    pub fn new(username: String, password: String, email: String) -> User {
         User {
             token: None,
             username: username,
@@ -59,7 +57,7 @@ impl User {
 
 pub trait UserData {
     async fn add_user(db: &Database, new_user: User, token: &str) -> Result<User, String>;
-    async fn get_all_users(db: &Database) -> Option<Vec<User>>;
+    async fn _get_all_users(db: &Database) -> Option<Vec<User>>;
     async fn login(db: &Database, username: &str, db_store_pass: &str)
         -> Result<User, LoginErrors>;
 }
@@ -82,7 +80,7 @@ impl UserData for Database {
         }
     }
 
-    async fn get_all_users(db: &Database) -> Option<Vec<User>> {
+    async fn _get_all_users(db: &Database) -> Option<Vec<User>> {
         let query = "SELECT * FROM users FETCH token;";
         let mut response = db.client.query(query).await.unwrap();
 
@@ -102,35 +100,25 @@ impl UserData for Database {
         username: &str,
         db_store_pass: &str,
     ) -> Result<User, LoginErrors> {
-        #[derive(Deserialize, Debug)]
-        struct HashedPass {
-            hashed_pass: String,
-        }
-        let sql = format!("SELECT hashed_pass FROM users:{}", username);
+        let sql = format!("SELECT VALUE hashed_pass FROM users:{}", username);
         debug!("Sending query: {}", sql);
         let mut query = db.client.query(sql).await.unwrap();
-        let pass_in_db: Option<HashedPass> = query.take(0).unwrap();
+        let pass_in_db: Option<String> = query.take(0).unwrap();
 
         match pass_in_db {
-            Some(database_hash) => {
-                let db_in_pass = database_hash.hashed_pass;
+            Some(db_in_pass) => {
+                // let db_in_pass = database_hash.hashed_pass;
                 if db_in_pass == generate_sha512_string(db_store_pass.to_string()) {
                     // SESSION VALIDITY FOUND... get user from db, serialise and return to client
 
                     // THIS has to be infallible since this is the only way we will refresh tokens!
-                    //
-                    #[derive(Deserialize)]
-                    struct DbResponseToken {
-                        token: Token,
-                    }
-
-                    let sql = format!("SELECT token FROM users:{} fetch token", username);
+                    let sql = format!("SELECT VALUE token.secret FROM users:{}", username);
                     let mut response = db.client.query(&sql).await.unwrap();
                     debug!("Sending query: {}", sql);
 
-                    let db_response: Option<DbResponseToken> = response.take(0).unwrap();
+                    let db_response: Option<String> = response.take(0).unwrap();
 
-                    let token = db_response.unwrap().token.secret;
+                    let token = db_response.unwrap();
 
                     let is_expired = db.is_sessionid_expired(&token).await.unwrap();
                     if is_expired {
