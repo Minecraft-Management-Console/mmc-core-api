@@ -2,15 +2,20 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha512};
 use surrealdb::Error;
 use tracing::{debug, info, warn};
-use validator::Validate;
+use validator::{Validate, ValidationError};
 
-
-use crate::{db::{database::LoginErrors, Database}, models::token::Token};
+use crate::{
+    db::{database::LoginErrors, Database},
+    models::token::Token,
+};
 
 use super::token::TokenData;
 #[derive(Validate, Serialize, Deserialize, Debug)]
 pub struct AuthUserSignupRequest {
-    #[validate(length(min = 3, message = "Username required to be more than 3 characters"))]
+    #[validate(
+        length(min = 3, message = "Username required to be more than 3 characters"),
+        custom = "validate_username"
+    )]
     pub username: String,
     #[validate(length(min = 8, message = "Password required to be more than 8 characters"))]
     pub password: String,
@@ -21,10 +26,33 @@ pub struct AuthUserSignupRequest {
 
 #[derive(Validate, Serialize, Deserialize, Debug)]
 pub struct AuthUserLoginRequest {
-    #[validate(length(min = 3, message = "Username required to be more than 3 characters"))]
+    #[validate(
+        length(min = 3, message = "Username required to be more than 3 characters"),
+        custom(
+            function = "validate_username",
+            message = "Cannot have special characters in username"
+        )
+    )]
     pub username: String,
     #[validate(length(min = 8, message = "Password required to be more than 8 characters"))]
     pub password: String,
+}
+
+fn validate_username(username: &str) -> Result<(), ValidationError> {
+    if username.contains(":")
+        || username.contains("-")
+        || username.contains("@")
+        || username.contains("-")
+        || username.contains(">")
+        || username.contains(' ')
+    {
+        // the value of the username will automatically be added later
+        return Err(ValidationError::new(
+            "SpecialChar",
+        ));
+    }
+
+    Ok(())
 }
 
 #[derive(Serialize, Deserialize, Validate, Debug)]
@@ -70,7 +98,7 @@ impl UserData for Database {
             .content(new_user)
             .await;
 
-        Database::create_token(&db,token, &username).await;
+        Database::create_token(&db, token, &username).await;
         match created_user {
             Ok(created) => Ok(created.unwrap()),
             Err(e) => {
@@ -134,7 +162,7 @@ impl UserData for Database {
                         let mut buffer = uuid::Uuid::encode_buffer();
                         let new_uuid = uuid::Uuid::new_v4().simple().encode_lower(&mut buffer);
 
-                        Database::create_token(&db,&new_uuid, &username).await;
+                        Database::create_token(&db, &new_uuid, &username).await;
                     } else {
                         db.refresh_token(&token).await;
                     }

@@ -35,7 +35,7 @@ impl TokenData for Database {
             })
             .await;
 
-        let query = format!("UPDATE token:{} SET owner=user:{}", token, username);
+        let query = format!("UPDATE token:{} SET owner=users:{}", token, username);
 
         let fuck_this_crap = format!("UPDATE users:{} SET token=token:{}", username, token);
 
@@ -43,10 +43,11 @@ impl TokenData for Database {
         db.client.query(query).query(fuck_this_crap).await.unwrap();
         match created_token {
             Ok(_) => {
-                info!("Created Token successfully");
+                info!("Created token:{token} successfully for {username}");
             }
             Err(e) => {
-                warn!("{e} {}", "Error");
+                warn!("{} {e}", "Error:");
+
             }
         };
     }
@@ -56,7 +57,7 @@ impl TokenData for Database {
     // PLEASE DO NOT FUCKING MAKE THIS RETURN SessionTokenErrors::ExpiredSessionToken
     async fn is_sessionid_expired(&self, token: &str) -> Result<bool, SessionTokenErrors> {
         let query = format!("SELECT VALUE expiry FROM token:{}", token);
-        info!({ query }, "Sending query to database");
+        debug!({ query }, "Sending query to database");
 
         let mut expiry = self.client.query(query).await.unwrap();
         let expiry: Option<String> = expiry.take(0).expect("Unable to query DB");
@@ -84,9 +85,9 @@ impl TokenData for Database {
     }
 
     async fn refresh_token(&self, token: &str) {
-        info!("Refreshing the session token.");
+        info!(token,"Refreshing the session");
         let new_expiry = (Utc::now() + chrono::Duration::days(1)).to_string();
-        debug!("{new_expiry}");
+        debug!("New expiry for {token}: {new_expiry}");
         let sql = format!("UPDATE token:{} SET expiry = \"{}\"", token, new_expiry);
 
         debug!("Sending query: {}", sql);
