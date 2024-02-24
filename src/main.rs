@@ -69,7 +69,7 @@ async fn create_user(user: Json<AuthUserSignupRequest>, db: Data<Database>) -> i
         Err(e) => {
             return HttpResponse::Forbidden()
                 .content_type(ContentType::json())
-                .body(format!("{{errors=[{}]}}", e))
+                .body(format!("{}", e))
         }
     }
 }
@@ -117,7 +117,7 @@ async fn login(user: Json<AuthUserLoginRequest>, db: Data<Database>) -> impl Res
         Err(e) => {
             return HttpResponse::Forbidden()
                 .content_type(ContentType::json())
-                .body(format!("{{errors=[{}]}}", e))
+                .body(format!("{}", e))
         }
     }
 }
