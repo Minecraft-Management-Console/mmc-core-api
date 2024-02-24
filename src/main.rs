@@ -3,27 +3,24 @@ mod models;
 
 use actix_cors::Cors;
 use actix_web::{
-    cookie::{time::Duration, Cookie},
+    cookie::Cookie,
     get,
-    http::{self, header::ContentType, StatusCode},
+    http::header::ContentType,
     post,
-    web::{Data, Form, Json},
+    web::{Data, Json},
     App, HttpRequest, HttpResponse, HttpServer, Responder,
 };
-use std::{env, io};
-use tracing::{debug, info, trace, warn, Level};
+use std::env;
+use tracing::{info, trace, warn, Level};
 use tracing_subscriber::{
-    fmt::{layer, writer::MakeWriterExt, MakeWriter},
-    layer::{self, SubscriberExt},
-    util::SubscriberInitExt,
+    fmt::writer::MakeWriterExt, layer::SubscriberExt, util::SubscriberInitExt,
 };
 use validator::Validate;
 
 use crate::{
     db::Database,
     models::{
-        users::{AuthUserLoginRequest, User},
-        AuthUserSignupRequest,
+        token::TokenData, users::{AuthUserLoginRequest, User, UserData}, AuthUserSignupRequest
     },
 };
 
@@ -31,7 +28,6 @@ use crate::{
 #[post("/create_user")]
 async fn create_user(user: Json<AuthUserSignupRequest>, db: Data<Database>) -> impl Responder {
     // info!(user,"/create_user http request received with body");
-    let domain = std::env::var("CORS_DOMAIN").unwrap();
     let is_valid = user.validate();
     match is_valid {
         Ok(_) => {
@@ -40,15 +36,15 @@ async fn create_user(user: Json<AuthUserSignupRequest>, db: Data<Database>) -> i
             let mut buffer = uuid::Uuid::encode_buffer();
             let new_uuid = uuid::Uuid::new_v4().simple().encode_lower(&mut buffer);
 
-            let new_user = db
-                .add_user(
-                    User::new(user_name, user.password.clone(), email, new_uuid),
-                    &new_uuid,
-                )
-                .await;
+            let new_user = Database::add_user(
+                &db,
+                User::new(user_name, user.password.clone(), email, new_uuid),
+                &new_uuid,
+            )
+            .await;
 
             match new_user {
-                Ok(created) => {
+                Ok(_) => {
                     // let json =
                     //     serde_json::to_string_pretty(&created).expect("unable to serialize user");
                     // let cookie = Cookie::build("Auth-Token", new_uuid.to_string().clone())
@@ -65,7 +61,9 @@ async fn create_user(user: Json<AuthUserSignupRequest>, db: Data<Database>) -> i
                         .content_type(ContentType::json())
                         .body("Created User!")
                 }
-                Err(e) => HttpResponse::Forbidden().content_type(ContentType::plaintext()).body(e),
+                Err(e) => HttpResponse::Forbidden()
+                    .content_type(ContentType::plaintext())
+                    .body(e),
             }
         }
         Err(e) => {
@@ -84,7 +82,7 @@ async fn login(user: Json<AuthUserLoginRequest>, db: Data<Database>) -> impl Res
     match is_valid {
         Ok(_) => {
             let user_name = user.username.clone();
-            let new_user = db.login(&user_name, &user.password).await;
+            let new_user = Database::login(&db,&user_name, &user.password).await;
 
             match new_user {
                 Ok(created) => {
@@ -135,13 +133,11 @@ fn get_auth_cookie<'a>(req: &'a HttpRequest) -> Option<String> {
     }
 }
 
-
-
 #[get("/validate")]
 async fn validate(auth: HttpRequest, db: Data<Database>) -> impl Responder {
     match get_auth_cookie(&auth) {
         Some(key) => {
-            match db.validate_token(&key).await {
+            match Database::validate_token(&db,&key).await {
                 Ok(()) => {
                     return HttpResponse::Ok().body("Ok!");
                 }
